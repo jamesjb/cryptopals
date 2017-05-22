@@ -28,7 +28,7 @@ func ScorePlaintext(s string) float32 {
 	return float32(result) / float32(len(s))
 }
 
-// AttackSingleByteXOR uses frequency analysis to guess the key of a ciphertext
+// AttackSingleByteXor uses frequency analysis to guess the key of a ciphertext
 // that has been XOR'ed with a single byte. Returns the most likely key and the
 // score of the plaintext for that key.
 func AttackSingleByteXor(ct []byte) (byte, float32) {
@@ -47,29 +47,9 @@ func AttackSingleByteXor(ct []byte) (byte, float32) {
 	return highScoreKey, highScore
 }
 
-// RepeatingXorKeysizeStat contains the normalized Hamming distance
-// for a particular key size.
-type RepeatingXorKeysizeStat struct {
+type keysizeStats struct {
 	KeySize           int
 	NormalizedHamming float32
-}
-
-// RepeatingXorKeysizes is an array of statistics for a set of key sizes.
-type RepeatingXorKeysizes []RepeatingXorKeysizeStat
-
-// Len returns the number of elements in a keysize slice.
-func (s RepeatingXorKeysizes) Len() int {
-	return len(s)
-}
-
-// Less compares two keysize statistics by normalized Hamming distance.
-func (s RepeatingXorKeysizes) Less(i, j int) bool {
-	return s[i].NormalizedHamming < s[j].NormalizedHamming
-}
-
-// Swap swaps two elements in a keysize statistics slice.
-func (s RepeatingXorKeysizes) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
 }
 
 // NormalizedHammingDistanceForKeysize calculates the normalized Hamming
@@ -103,7 +83,7 @@ func AttackRepeatingXorForKeysize(ct []byte, keysize int) []byte {
 // AttackRepeatingXor uses statistical methods to guess the key for a
 // ciphertext encrypted with "repeating key XOR".
 func AttackRepeatingXor(ct []byte) []byte {
-	keysizes := RepeatingXorKeysizes{}
+	keysizes := []keysizeStats{}
 	maxKeysize := 40
 
 	if maxKeysize > len(ct)/2 {
@@ -112,9 +92,12 @@ func AttackRepeatingXor(ct []byte) []byte {
 
 	for i := 1; i <= maxKeysize; i++ {
 		dist := NormalizedHammingDistanceForKeysize(ct, i, len(ct)/i-1)
-		keysizes = append(keysizes, RepeatingXorKeysizeStat{i, dist})
+		keysizes = append(keysizes, keysizeStats{i, dist})
 	}
 
-	sort.Sort(keysizes)
+	sort.Slice(keysizes, func(i int, j int) bool {
+		return keysizes[i].NormalizedHamming < keysizes[j].NormalizedHamming
+	})
+
 	return AttackRepeatingXorForKeysize(ct, keysizes[0].KeySize)
 }
